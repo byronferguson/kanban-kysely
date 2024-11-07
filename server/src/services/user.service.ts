@@ -1,5 +1,7 @@
+import { sql } from 'kysely';
 import { db } from '../db.js';
 import { NewUser, User, UserUpdate } from '../types/database.js';
+import { hashPassword } from '../utils/auth.js';
 
 export async function find(
   criteria: Partial<User> = {},
@@ -25,19 +27,25 @@ export function findById(id: number) {
   return find({ id }).then((users) => users[0]);
 }
 
-export function update(id: number, updateWith: UserUpdate) {
+export async function create(newUser: NewUser) {
   return db
-    .updateTable('users')
-    .set(updateWith)
-    .where('id', '=', id)
+    .insertInto('users')
+    .values({ ...newUser, password: await hashPassword(newUser.password) })
     .returningAll()
     .executeTakeFirst();
 }
 
-export function create(newUser: NewUser) {
+export async function update(id: number, updateWith: UserUpdate) {
   return db
-    .insertInto('users')
-    .values(newUser)
+    .updateTable('users')
+    .set({
+      ...updateWith,
+      ...(updateWith.password && {
+        password: await hashPassword(updateWith.password),
+      }),
+      updatedAt: sql`NOW()`,
+    })
+    .where('id', '=', id)
     .returningAll()
     .executeTakeFirst();
 }
